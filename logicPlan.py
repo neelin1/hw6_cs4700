@@ -662,7 +662,7 @@ def mapping(problem, agent) -> Generator:
         for x, y in non_outer_wall_coords:
             isWallLoc = PropSymbolExpr(wall_str, x, y)
 
-            if entails(conjoin(KB), ~isWallLoc):
+            if entails(propInfo, ~isWallLoc):
                 known_map[x][y] = 0
                 KB.append(~isWallLoc)
             elif entails(propInfo, isWallLoc):
@@ -671,7 +671,7 @@ def mapping(problem, agent) -> Generator:
 
         # Call agent.moveToNextState(action_t) on the current agent action at timestep t.
         agent.moveToNextState(agent.actions[t])
-        # yield the possible locations
+        # yield the known map
         "*** END YOUR CODE HERE ***"
         yield known_map
 
@@ -708,7 +708,11 @@ def slam(problem, agent) -> Generator:
     # For example, we know the initial location of pacman, and we know that there cannot be a wall at that location
     # The fact that there cannot be a wall at the initial location of pacman should be encoded in `known_map`
     "*** BEGIN YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    # initial position of pacman
+    KB.append(PropSymbolExpr(pacman_str, pac_x_0, pac_y_0, time=0))
+
+    # no wall where pacman starts
+    known_map[pac_x_0][pac_y_0] = 0
     "*** END YOUR CODE HERE ***"
 
     # Loop over every time step and add/solve constraints sufficient
@@ -718,7 +722,39 @@ def slam(problem, agent) -> Generator:
         possible_locations = []
 
         "*** BEGIN YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        # Add pacphysics info to KB
+        KB.append(pacphysicsAxioms(t, all_coords, non_outer_wall_coords, known_map, SLAMSensorAxioms, SLAMSuccessorAxioms))
+        # Add action information to KB
+        KB.append(PropSymbolExpr(agent.actions[t], time=t))
+        # Add percept information to KB
+        KB.append(numAdjWallsPerceptRules(t, agent.getPercepts()))
+
+        propInfo = conjoin(KB)
+        # find provable wall locations with updated KB
+        for x, y in non_outer_wall_coords:
+            isWallLoc = PropSymbolExpr(wall_str, x, y)
+            pacManLoc = PropSymbolExpr(pacman_str, x, y, time=t)
+            pacmanModel = findModel(propInfo & pacManLoc)
+
+            if entails(propInfo, ~isWallLoc):
+                known_map[x][y] = 0
+                KB.append(~isWallLoc)
+            elif entails(propInfo, isWallLoc):
+                known_map[x][y] = 1
+                KB.append(isWallLoc)
+
+            if pacmanModel:
+                possible_locations.append((x, y))
+            elif entails(propInfo, pacManLoc):
+                KB.append(pacManLoc)
+            elif entails(propInfo, ~pacManLoc):
+                KB.append(~pacManLoc)
+
+        # find possible pacman locations with updated KB
+
+        # Call agent.moveToNextState(action_t) on the current agent action at timestep t.
+        agent.moveToNextState(agent.actions[t])
+        # yield the possible locations and the known map
         "*** END YOUR CODE HERE ***"
         yield (known_map, possible_locations)
 
