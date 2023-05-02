@@ -189,7 +189,7 @@ def atLeastOne(literals: List[Expr]) -> Expr:
     True
     """
     "*** BEGIN YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    return (disjoin(literals))
     "*** END YOUR CODE HERE ***"
 
 
@@ -201,7 +201,14 @@ def atMostOne(literals: List[Expr]) -> Expr:
     itertools.combinations may be useful here.
     """
     "*** BEGIN YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    # A= true B=false C= false
+    # (~A | ~B) & (~B | ~C) & (~A | ~C)
+    # put all literals i and j in pairs (~i | ~j). If there are 2 that are true, then one of these will be false
+    props = []
+    for pair in itertools.combinations(literals, 2):
+        props.append(disjoin(~pair[0], ~pair[1]))
+
+    return conjoin(props)
     "*** END YOUR CODE HERE ***"
 
 
@@ -212,7 +219,8 @@ def exactlyOne(literals: List[Expr]) -> Expr:
     the expressions in the list is true.
     """
     "*** BEGIN YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    # return atLeastOne(literals) & atMostOne(literals)
+    return conjoin([atLeastOne(literals), atMostOne(literals)])
     "*** END YOUR CODE HERE ***"
 
 # ______________________________________________________________________________
@@ -247,7 +255,9 @@ def pacmanSuccessorAxiomSingle(x: int, y: int, time: int, walls_grid: List[List[
         return None
 
     "*** BEGIN YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    prop = PropSymbolExpr(
+        pacman_str, x, y, time=now) % disjoin(possible_causes)
+    return (prop)
     "*** END YOUR CODE HERE ***"
 
 
@@ -324,7 +334,34 @@ def pacphysicsAxioms(t: int, all_coords: List[Tuple], non_outer_wall_coords: Lis
     pacphysics_sentences = []
 
     "*** BEGIN YOUR CODE HERE ***"
-    util.raiseNotDefined()
+
+    # for all (x, y) in all_coords: If a wall is at (x, y) --> Pacman is not at (x, y)
+    # pacphysics_sentences.extend([PropSymbolExpr(wall_str, x, y) >> ~PropSymbolExpr(
+    #     pacman_str, x, y) for x, y in all_coords])
+    for coord in all_coords:
+        pacphysics_sentences.append(
+            (PropSymbolExpr(wall_str, coord[0], coord[1]) >> ~PropSymbolExpr(pacman_str, coord[0], coord[1], time=t)))
+
+    # Pacman is at exactly one of the squares at timestep t.
+    pacphysics_sentences.append(exactlyOne(
+        [PropSymbolExpr(pacman_str, x, y, time=t) for x, y in non_outer_wall_coords]))
+
+    # Pacman takes exactly one action at timestep t.
+    pacphysics_sentences.append(exactlyOne(
+        [PropSymbolExpr(action, time=t) for action in DIRECTIONS]))
+
+    # Results of calling sensorModel(...), unless None.
+    if sensorModel:
+        pacphysics_sentences.append(sensorModel(t, non_outer_wall_coords))
+
+    # Results of calling successorAxioms(...), describing how Pacman can end in various locations on this time step. Consider edge cases. Don't call if None.
+    if successorAxioms and t and walls_grid:
+        pacphysics_sentences.append(successorAxioms(
+            t, walls_grid, non_outer_wall_coords))
+
+    # returning conjoined proposition
+    return conjoin(pacphysics_sentences)
+
     "*** END YOUR CODE HERE ***"
 
     return conjoin(pacphysics_sentences)
@@ -360,7 +397,22 @@ def checkLocationSatisfiability(x1_y1: Tuple[int, int], x0_y0: Tuple[int, int], 
     KB.append(conjoin(map_sent))
 
     "*** BEGIN YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    KB.append(pacphysicsAxioms(0, all_coords, non_outer_wall_coords,
+              walls_grid, None, allLegalSuccessorAxioms))
+    KB.append(pacphysicsAxioms(1, all_coords, non_outer_wall_coords,
+              walls_grid, None, allLegalSuccessorAxioms))
+    KB.append(PropSymbolExpr(pacman_str, x0, y0, time=0))
+    KB.append(PropSymbolExpr(action0, time=0))
+    KB.append(PropSymbolExpr(action1, time=1))
+
+    model1 = findModel(
+        conjoin(KB + [PropSymbolExpr(pacman_str, x1, y1, time=1)]))
+
+    model2 = findModel(
+        conjoin(KB + [~PropSymbolExpr(pacman_str, x1, y1, time=1)]))
+
+    return model1, model2
+
     "*** END YOUR CODE HERE ***"
 
 # ______________________________________________________________________________
